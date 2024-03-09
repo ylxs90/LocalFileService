@@ -1,21 +1,13 @@
 pub mod server {
-    use std::convert::Infallible;
-    use std::fmt::format;
     use std::io::Write;
     use std::net::{SocketAddr, TcpListener};
     use std::path::PathBuf;
     use std::thread::sleep;
     use std::time::Duration;
-    use bytes::Bytes;
-    use http_body_util::Full;
-    use hyper::body::Body;
-    use hyper::{Request, Response, StatusCode};
 
     use crate::Mode;
     use crate::Mode::Download;
     use crate::server::server::Server::{DownloadServer, UploadServer};
-
-
 
     pub trait FileServer {
         fn serve(&self) {
@@ -97,28 +89,12 @@ pub mod server {
     }
 
 
-    async fn handle_upload(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
-        if req.uri().path() != "/file" {
-            return download_page(req);
-        }
-        todo!()
-    }
 
-    async fn download_page(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
-        let response = Response::builder()
-            .header("Content-Type", "text/html")
-            .status(StatusCode::OK)
-            .body(Full::new(Bytes::from(""))).unwrap();
-
-        Ok(response)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::net::SocketAddr;
-    use std::thread::{sleep, spawn};
-    use std::time::Duration;
 
     use crate::server::server::{FileServer, Server};
 
