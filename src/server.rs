@@ -95,13 +95,13 @@ pub mod server {
 #[cfg(test)]
 mod tests {
     use std::net::SocketAddr;
-
+    use crate::Mode::Upload;
     use crate::server::server::{FileServer, Server};
 
     #[test]
     fn test_serve() {
         let addr: SocketAddr = "0.0.0.0:1337".parse().unwrap();
-        let server: Server = (&addr, &".".into()).into();
+        let server: Server = (&Upload, &addr, &".".into()).into();
         println!("{:?}", server);
         server.serve();
     }

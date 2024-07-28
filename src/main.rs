@@ -19,7 +19,7 @@ struct Params {
     #[clap(index = 1, default_value = ".")]
     path: String,
     /// if port < 1024, use random port
-    #[arg(short, long, default_value = "0")]
+    #[arg(short, long, default_value = "8080")]
     port: u16,
     /// download, upload
     #[arg(short, long, default_value = "download")]
@@ -103,7 +103,6 @@ fn main() -> Result<()> {
     let access_base_uri = format!("{bind_ip}:{}", param.port);
     println!("uri: {}", format!("http://{}", access_base_uri).color(Color::BrightBlue));
     qr2term::print_qr(format!("http://{access_base_uri}")).unwrap();
-
 
     Ok(())
 }
