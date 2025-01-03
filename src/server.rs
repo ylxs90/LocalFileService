@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 pub mod server {
     use std::io::Write;
     use std::net::{SocketAddr, TcpListener};
@@ -92,9 +94,35 @@ pub mod server {
 
 }
 
+
+macro_rules! file_to_html {
+    ($fmt:expr, $path:expr) => {{
+        // Hardcoded content; replace this with file reading or other logic if needed
+        let path = $path as &PathBuf;
+        let mut generated_html = String::new();
+         match path.read_dir() {
+            Ok(dir) => {
+                dir.into_iter().for_each(|d| {
+                    // println!("{:?}", d.unwrap());
+                    let  data = format!("<td>{}</td>\n", d.unwrap().file_name().to_str().unwrap());
+                    generated_html.push_str(&data);
+                })
+            }
+            Err(_) => {
+                println!("error", );
+            }
+        }
+
+
+
+        // Replace the `{}` in the format string with the generated HTML
+        format!($fmt, generated_html)
+    }};
+}
 #[cfg(test)]
 mod tests {
     use std::net::SocketAddr;
+    use std::path::PathBuf;
     use crate::Mode::Upload;
     use crate::server::server::{FileServer, Server};
 
@@ -104,6 +132,34 @@ mod tests {
         let server: Server = (&Upload, &addr, &".".into()).into();
         println!("{:?}", server);
         server.serve();
+    }
+
+    #[test]
+    fn test_marco() {
+        // ll !/
+        // aa
+        // bb
+        let mut path = PathBuf::from("./");
+
+        // match path.read_dir() {
+        //     Ok(dir) => {
+        //         dir.into_iter().for_each(|d| {
+        //             let entry = d.unwrap();
+        //
+        //             println!("{:?}", entry.path());
+        //         })
+        //     }
+        //     Err(e) => {
+        //         println!("{}", e);
+        //     }
+        // }
+
+
+        let x = file_to_html!("<tr>\n{}</tr>\n", &path);
+
+
+
+        println!("{}", x);
     }
 
 

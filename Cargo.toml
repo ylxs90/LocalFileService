@@ -13,8 +13,13 @@ clap = { version = "4", features = ["derive"] }
 qr2term = "0.3.1"
 colored = "2"
 get_if_addrs = "0.5.3"
-rocket = "0.5.1"
 time = "0.3.36"
+
+
+actix-web = "4"
+actix-files = "0"
+tokio = {version = "1", features = ["full"]}
+futures = "0"
 
 
 
