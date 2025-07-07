@@ -1,14 +1,18 @@
-mod server;
 mod core;
+mod server;
 
-use std::collections::HashMap;
-use std::io::{stdout, Write};
-use std::str::FromStr;
-
+use actix_files::NamedFile;
+use actix_multipart::Multipart;
+use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use anyhow::Result;
 use clap::Parser;
 use colored::{Color, Colorize};
+use futures::StreamExt;
 use get_if_addrs::get_if_addrs;
+use std::collections::HashMap;
+use std::io::{stdout, Write};
+use std::net::IpAddr;
+use std::str::FromStr;
 
 use crate::Mode::{Download, Upload};
 
@@ -40,25 +44,21 @@ impl FromStr for Mode {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        return match s.to_lowercase().as_str() {
-            "download" => {
-                Ok(Download)
-            }
-            "upload" => {
-                Ok(Upload)
-            }
-            _ => { Err(format!("error to parse {} for Mode", s)) }
-        };
+        match s.to_lowercase().as_str() {
+            "download" => Ok(Download),
+            "upload" => Ok(Upload),
+            _ => Err(format!("error to parse {} for Mode", s)),
+        }
     }
 }
 
-fn main() -> Result<()> {
+#[actix_web::main]
+async fn main() -> Result<()> {
     let param = Params::parse();
     if param.path == "." {
-        println!("start local server for current dir", );
+        println!("start local server for current dir");
     }
     println!("{:?}", param);
-
 
     let mut ips = HashMap::new();
     let mut ip_index = 0;
@@ -74,19 +74,22 @@ fn main() -> Result<()> {
     let mut bind_ip = String::new();
     loop {
         println!("IP list:");
-        // println!("{:#?}", ips);
         for n in 0..ip_index {
             println!("[{n:0>2}] {}", ips.get(&n).unwrap());
         }
-        print!("choose your access IP address:{}{}{}", "[".bold(), DEFAULT_IP_IDX, "]".bold());
-        stdout().flush().unwrap();
+        
+        print!(
+            "choose your access IP address:{}{}{}",
+            "[".bold(),
+            DEFAULT_IP_IDX,
+            "]".bold()
+        );
+        stdout().flush()?;
 
         let mut buf = String::new();
         if let Ok(s) = std::io::stdin().read_line(&mut buf) {
             buf = buf.trim().to_string();
             if buf.is_empty() {
-                // using default (key = 1) ip address
-                // because key = 0 usually is 127.0.0.1, this program was supposed to provide a LAN file service
                 bind_ip = ips.get(&DEFAULT_IP_IDX).unwrap().to_string();
                 break;
             }
@@ -101,9 +104,57 @@ fn main() -> Result<()> {
         stdout().flush().unwrap();
         eprintln!("only allows 0~{}, but got input {buf}", ip_index - 1);
     }
-    let access_base_uri = format!("{bind_ip}:{}", param.port);
-    println!("uri: {}", format!("http://{}", access_base_uri).color(Color::BrightBlue));
+
+    let access_base_uri = if bind_ip.parse::<IpAddr>()?.is_ipv6() {
+        format!("[{bind_ip}]:{}", param.port)
+    } else {
+        format!("{bind_ip}:{}", param.port)
+    };
+    println!(
+        "uri: {}",
+        format!("http://{}", access_base_uri).color(Color::BrightBlue)
+    );
     qr2term::print_qr(format!("http://{access_base_uri}")).unwrap();
 
+    std::fs::create_dir_all("./uploads")?;
+    HttpServer::new(move || {
+        let app = App::new().route("/", web::get().to(index));
+        match param.mode {
+            Upload => app.route("/upload", web::post().to(upload)),
+            Download => {
+                app.service(actix_files::Files::new("/files", "./uploads").show_files_listing())
+            }
+        }
+    })
+    .bind((bind_ip.as_str(), param.port))?
+    .run()
+    .await?;
+
     Ok(())
+}
+
+async fn index() -> impl Responder {
+    NamedFile::open("static/index.html")
+}
+
+async fn upload(mut payload: Multipart) -> impl Responder {
+    while let Some(item) = payload.next().await {
+        let mut field = item.unwrap();
+        let content_disposition = field.content_disposition();
+        let filename = content_disposition.get_filename().unwrap();
+        let filepath = format!("./uploads/{}", sanitize_filename::sanitize(&filename));
+
+        let mut f = web::block(|| std::fs::File::create(filepath))
+            .await
+            .unwrap()
+            .unwrap();
+        while let Some(chunk) = field.next().await {
+            let data = chunk.unwrap();
+            f = web::block(move || f.write_all(&data).map(|_| f))
+                .await
+                .unwrap()
+                .unwrap();
+        }
+    }
+    HttpResponse::Ok().body("File uploaded successfully")
 }
